@@ -49,7 +49,8 @@ class MiscellaneousTests: XCTestCase {
         )
     }
 
-    func testStartupCommands() {
+    @MainActor
+    func testStartupCommands() async {
         let userDefaultsKey = "test_ud_key"
         let randomString = ProcessInfo.processInfo.globallyUniqueString
 
