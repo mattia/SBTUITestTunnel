@@ -254,25 +254,44 @@ static NSTimeInterval SBTUITunneledApplicationDefaultTimeout = 30.0;
             [self shutDownWithErrorMessage:@"[SBTUITestTunnel] IPC tunnel did fail to connect" code:SBTUITestTunnelErrorConnectionToApplicationFailed];
             return;
         }
-            
+
         [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.5]];
     }
-    
-    __weak typeof(self)weakSelf = self;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        weakSelf.connected = YES;
 
-        NSLog(@"[SBTUITestTunnel] IPC tunnel did connect after, %fs", CFAbsoluteTimeGetCurrent() - weakSelf.launchStart);
+    if (dispatch_queue_get_label(dispatch_get_main_queue()) == dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL)) {
+        self.connected = YES;
 
-        if (weakSelf.startupBlock) {
+        NSLog(@"[SBTUITestTunnel] IPC tunnel did connect after, %fs", CFAbsoluteTimeGetCurrent() - self.launchStart);
+
+        if (self.startupBlock) {
+          self.startupBlock();
+          NSLog(@"[SBTUITestTunnel] Did perform startupBlock");
+        }
+
+        self.startupCompleted = [[self
+                                  sendSynchronousRequestWithPath:SBTUITunneledApplicationCommandStartupCommandsCompleted
+                                  params:@{}] isEqualToString:@"YES"];
+
+        NSLog(@"[SBTUITestTunnel] Tunnel ready after %fs", CFAbsoluteTimeGetCurrent() - self.launchStart);
+    } else {
+      __weak typeof(self) weakSelf = self;
+        dispatch_async(dispatch_get_main_queue(), ^{
+          weakSelf.connected = YES;
+
+          NSLog(@"[SBTUITestTunnel] IPC tunnel did connect after, %fs", CFAbsoluteTimeGetCurrent() - weakSelf.launchStart);
+
+          if (weakSelf.startupBlock) {
             weakSelf.startupBlock();
             NSLog(@"[SBTUITestTunnel] Did perform startupBlock");
-        }
-        
-        weakSelf.startupCompleted = [[weakSelf sendSynchronousRequestWithPath:SBTUITunneledApplicationCommandStartupCommandsCompleted params:@{}] isEqualToString:@"YES"];
+          }
 
-        NSLog(@"[SBTUITestTunnel] Tunnel ready after %fs", CFAbsoluteTimeGetCurrent() - weakSelf.launchStart);
-    });
+          weakSelf.startupCompleted = [[weakSelf
+                                        sendSynchronousRequestWithPath:SBTUITunneledApplicationCommandStartupCommandsCompleted
+                                        params:@{}] isEqualToString:@"YES"];
+
+          NSLog(@"[SBTUITestTunnel] Tunnel ready after %fs", CFAbsoluteTimeGetCurrent() - weakSelf.launchStart);
+        });
+    }
 }
 
 - (void)performCommandWithParameters:(NSDictionary *)parameters block:(void (^)(NSDictionary *))block {}
