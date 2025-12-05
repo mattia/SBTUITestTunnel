@@ -163,17 +163,28 @@ static NSTimeInterval SBTUITunneledApplicationDefaultTimeout = 30.0;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             [weakSelf waitForConnection];
             NSLog(@"[SBTUITestTunnel] HTTP tunnel did connect after, %fs", CFAbsoluteTimeGetCurrent() - self.launchStart);
-            
+
+          if (dispatch_queue_get_label(dispatch_get_main_queue()) == dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL)) {
+            self.connected = YES;
+            if (self.startupBlock) {
+              self.startupBlock();
+              NSLog(@"[SBTUITestTunnel] Did perform startupBlock");
+            }
+
+            NSAssert([NSThread isMainThread], @"We synch on main thread");
+            self.startupCompleted = [[self sendSynchronousRequestWithPath:SBTUITunneledApplicationCommandStartupCommandsCompleted params:@{}] isEqualToString:@"YES"];
+          } else {
             dispatch_async(dispatch_get_main_queue(), ^{
-                weakSelf.connected = YES;
-                if (weakSelf.startupBlock) {
-                    weakSelf.startupBlock();
-                    NSLog(@"[SBTUITestTunnel] Did perform startupBlock");
-                }
-                
-                NSAssert([NSThread isMainThread], @"We synch on main thread");
-                weakSelf.startupCompleted = [[self sendSynchronousRequestWithPath:SBTUITunneledApplicationCommandStartupCommandsCompleted params:@{}] isEqualToString:@"YES"];
+              weakSelf.connected = YES;
+              if (weakSelf.startupBlock) {
+                weakSelf.startupBlock();
+                NSLog(@"[SBTUITestTunnel] Did perform startupBlock");
+              }
+
+              NSAssert([NSThread isMainThread], @"We synch on main thread");
+              weakSelf.startupCompleted = [[self sendSynchronousRequestWithPath:SBTUITunneledApplicationCommandStartupCommandsCompleted params:@{}] isEqualToString:@"YES"];
             });
+          }
         });
     }
     
